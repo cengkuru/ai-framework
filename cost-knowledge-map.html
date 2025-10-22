@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoST AI Framework</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+        :root {
+            color-scheme: light;
+            --bg-base: #f5f5f7;
+            --bg-top: #ffffff;
+            --ink-primary: #1d1d1f;
+            --ink-secondary: #6e6e73;
+            --ink-muted: #a1a1a6;
+            --accent-primary: #b7251c;
+            --accent-secondary: #2f89a2;
+            --card-shadow: 0 18px 46px rgba(29, 29, 31, 0.12);
+            --card-shadow-soft: 0 12px 32px rgba(29, 29, 31, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, var(--bg-base) 0%, var(--bg-top) 40%, #ffffff 100%);
+            color: var(--ink-primary);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        #canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            mix-blend-mode: normal;
+        }
+
+        .links path {
+            fill: none;
+            stroke-width: 2px;
+            stroke-linecap: round;
+            opacity: 0.75;
+            transition: stroke 0.4s ease, opacity 0.4s ease, stroke-width 0.3s ease;
+        }
+
+        .links path.link-category {
+            stroke: url(#gradient-category);
+        }
+
+        .links path.link-product {
+            stroke: url(#gradient-product);
+        }
+
+        .links path.link-highlighted {
+            stroke: url(#gradient-highlight);
+            stroke-width: 3px;
+            opacity: 1;
+            animation: pulse-line 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-line {
+            0%, 100% {
+                stroke-opacity: 1;
+            }
+            50% {
+                stroke-opacity: 0.7;
+            }
+        }
+
+        .nodes .node {
+            cursor: pointer;
+            transition: transform 0.45s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.3s ease;
+        }
+
+        .nodes .node.node-dimmed {
+            opacity: 0.25;
+        }
+
+        .nodes .node.node-root {
+            cursor: default;
+        }
+
+        .nodes .node.is-dragging {
+            transition: none;
+        }
+
+        .node-card-wrapper {
+            pointer-events: none;
+        }
+
+        .node-card {
+            pointer-events: all;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.9);
+            -webkit-backdrop-filter: blur(24px) saturate(160%);
+            backdrop-filter: blur(24px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: var(--card-shadow-soft);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 12px;
+            padding: 24px 28px;
+            position: relative;
+            transition: box-shadow 0.4s ease, transform 0.4s ease, border-color 0.3s ease;
+            text-align: left;
+            overflow-wrap: anywhere;
+            cursor: grab;
+        }
+
+        .node-card.node-root {
+            cursor: default;
+        }
+
+        .is-dragging .node-card {
+            cursor: grabbing !important;
+        }
+
+        .node-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            pointer-events: none;
+        }
+
+        .node-card:hover {
+            box-shadow: var(--card-shadow);
+            transform: translateY(-6px);
+            border-color: rgba(183, 37, 28, 0.15);
+        }
+
+        .node-card.node-root {
+            background: linear-gradient(150deg, rgba(29, 29, 31, 0.92) 0%, rgba(65, 62, 58, 0.92) 100%);
+            color: #ffffff;
+            padding: 28px 32px;
+        }
+
+        .node-card.node-category {
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 244, 248, 0.9) 100%);
+        }
+
+        .node-card.node-category:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 20px 52px rgba(183, 37, 28, 0.14);
+        }
+
+        .node.is-expanded .node-card.node-category {
+            border-color: var(--accent-secondary);
+            box-shadow: 0 16px 40px rgba(47, 137, 162, 0.16);
+        }
+
+        .node.is-expanded .node-card.node-category .node-indicator {
+            background: linear-gradient(135deg, var(--accent-secondary) 0%, rgba(47, 137, 162, 0.85) 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(47, 137, 162, 0.3);
+        }
+
+        .node-card.node-product {
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.94) 0%, rgba(249, 249, 250, 0.9) 100%);
+        }
+
+        .node-eyebrow {
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.65);
+            margin-bottom: 12px;
+        }
+
+        .node-card.node-category .node-eyebrow {
+            color: var(--accent-primary);
+        }
+
+        .node-card.node-product .node-eyebrow {
+            color: var(--accent-secondary);
+        }
+
+        .node-title {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+            margin-bottom: 10px;
+        }
+
+        .node-card.node-root .node-title {
+            font-size: 26px;
+        }
+
+        .node-copy {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--ink-secondary);
+            overflow-wrap: anywhere;
+        }
+
+        .node-card.node-root .node-copy {
+            color: rgba(255, 255, 255, 0.68);
+        }
+
+        .node-meta {
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--ink-muted);
+            margin-top: 16px;
+        }
+
+        .node-card.node-product .node-meta {
+            color: var(--accent-secondary);
+        }
+
+        .node-card .node-indicator {
+            position: absolute;
+            top: 18px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--accent-primary);
+            box-shadow: inset 0 0 0 1px rgba(183, 37, 28, 0.12);
+        }
+
+        .node-card.node-root .node-indicator,
+        .node-card.node-product .node-indicator {
+            display: none;
+        }
+
+        .node.node-category.is-collapsed .node-card {
+            opacity: 0.86;
+        }
+
+        .node.node-category.is-collapsed .node-card .node-indicator {
+            color: var(--accent-secondary);
+            box-shadow: inset 0 0 0 1px rgba(47, 137, 162, 0.14);
+        }
+
+        .detail-panel {
+            position: fixed;
+            top: 50%;
+            right: 48px;
+            transform: translateY(-50%) translateX(320px);
+            background: rgba(255, 255, 255, 0.96);
+            -webkit-backdrop-filter: blur(26px) saturate(160%);
+            backdrop-filter: blur(26px) saturate(160%);
+            border-radius: 28px;
+            padding: 32px 36px;
+            width: 360px;
+            box-shadow: 0 28px 60px rgba(29, 29, 31, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.45s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.4s ease;
+            z-index: 10;
+        }
+
+        .detail-panel.visible {
+            transform: translateY(-50%) translateX(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .detail-panel h2 {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            margin-bottom: 12px;
+            color: var(--ink-primary);
+        }
+
+        .detail-panel .priority-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--accent-primary);
+            margin-bottom: 18px;
+        }
+
+        .detail-panel p {
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--ink-secondary);
+            margin-bottom: 18px;
+        }
+
+        .detail-panel .meta-line {
+            font-size: 12px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--ink-muted);
+            margin-bottom: 14px;
+        }
+
+        .detail-panel .product-list {
+            list-style: none;
+            margin-top: 12px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .detail-panel .product-list li {
+            font-size: 14px;
+            color: var(--ink-primary);
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .detail-panel .product-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-secondary);
+        }
+
+        .detail-panel .close-btn {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            width: 36px;
+            height: 36px;
+            border-radius: 14px;
+            border: none;
+            background: rgba(245, 245, 247, 0.9);
+            color: var(--ink-muted);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .detail-panel .close-btn:hover {
+            transform: scale(1.06);
+            background: rgba(245, 245, 247, 1);
+            color: var(--ink-primary);
+        }
+
+        .detail-panel .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--ink-muted);
+            margin-bottom: 16px;
+            letter-spacing: 0.02em;
+        }
+
+        .detail-panel .breadcrumb-separator {
+            opacity: 0.4;
+        }
+
+        .detail-panel .breadcrumb-item {
+            transition: color 0.2s ease;
+        }
+
+        .detail-panel .breadcrumb-item.active {
+            color: var(--ink-primary);
+            font-weight: 500;
+        }
+
+        .keyboard-hint {
+            position: fixed;
+            bottom: 32px;
+            left: 32px;
+            background: rgba(255, 255, 255, 0.9);
+            -webkit-backdrop-filter: blur(18px) saturate(160%);
+            backdrop-filter: blur(18px) saturate(160%);
+            border-radius: 20px;
+            padding: 16px 20px;
+            font-size: 12px;
+            color: var(--ink-secondary);
+            box-shadow: 0 12px 28px rgba(29, 29, 31, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            z-index: 15;
+        }
+
+        .keyboard-hint.visible {
+            opacity: 1;
+        }
+
+        .keyboard-hint kbd {
+            display: inline-block;
+            padding: 3px 8px;
+            background: rgba(245, 245, 247, 0.9);
+            border-radius: 6px;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--ink-primary);
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+        }
+
+        .interface-layer {
+            position: fixed;
+            top: 32px;
+            right: 36px;
+            display: flex;
+            align-items: flex-end;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .zoom-controls {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto;
+            padding: 20px 18px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(18px) saturate(160%);
+            -webkit-backdrop-filter: blur(18px) saturate(160%);
+            box-shadow: 0 18px 42px rgba(29, 29, 31, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.65);
+        }
+
+        .zoom-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 18px;
+            border: none;
+            background: rgba(245, 245, 247, 0.94);
+            color: var(--ink-primary);
+            font-size: 26px;
+            font-weight: 500;
+            line-height: 1;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+        }
+
+        .zoom-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 10px 20px rgba(29, 29, 31, 0.12);
+        }
+
+        .zoom-btn:active {
+            transform: translateY(0);
+            background: rgba(235, 235, 237, 1);
+        }
+
+        @media (max-width: 960px) {
+            .detail-panel {
+                position: fixed;
+                left: 24px;
+                right: 24px;
+                width: auto;
+                top: auto;
+                bottom: 24px;
+                transform: translateY(120px);
+            }
+
+            .detail-panel.visible {
+                transform: translateY(0);
+            }
+
+            .zoom-btn {
+                width: 56px;
+                height: 56px;
+            }
+
+            .keyboard-hint {
+                display: none;
+            }
+
+            .node-card {
+                touch-action: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="interface-layer" aria-hidden="true">
+        <div class="zoom-controls" role="group" aria-label="Zoom controls">
+            <button type="button" id="zoom-in" class="zoom-btn" aria-label="Zoom in">＋</button>
+            <button type="button" id="zoom-out" class="zoom-btn" aria-label="Zoom out">−</button>
+            <button type="button" id="export-svg" class="zoom-btn" aria-label="Export as SVG" title="Export SVG">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M10 3v10M10 13l-3-3M10 13l3-3M4 17h12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <svg id="canvas" role="img" aria-label="CoST AI Framework knowledge map"></svg>
+
+    <div id="detail-panel" class="detail-panel" aria-live="polite">
+        <button type="button" class="close-btn" id="close-btn" aria-label="Close">×</button>
+        <div id="detail-content"></div>
+    </div>
+
+    <div id="keyboard-hint" class="keyboard-hint">
+        <kbd>E</kbd> expand all · <kbd>C</kbd> collapse · <kbd>R</kbd> reset · <kbd>+</kbd> / <kbd>-</kbd> zoom · drag to pan infinitely
+    </div>
+
+    <script>
+        const data = {
+            id: 'root',
+            name: 'CoST AI Framework',
+            description: 'Connected intelligence spanning knowledge, discovery, and delivery.',
+            categories: [
+                {
+                    id: 'search',
+                    name: 'Data Interaction & Search',
+                    priority: 'secondary',
+                    description: 'Find and access infrastructure transparency data.',
+                    products: [
+                        {
+                            id: 'alfred',
+                            name: 'Alfred Search Engine',
+                            description: 'Searches CoST resources, accesses historical data, filters by topic, country, or document type, and answers questions using the CoST knowledge base.'
+                        }
+                    ]
+                },
+                {
+                    id: 'knowledge',
+                    name: 'Knowledge Generation',
+                    priority: 'PRIMARY',
+                    description: 'Create transparency outputs with AI assistance.',
+                    products: [
+                        {
+                            id: 'knowledge-hub',
+                            name: 'Knowledge Hub',
+                            description: 'Structured repository of assurance methodologies, case studies, best practice documentation, and practitioner exchange notes that powers every other product.'
+                        }
+                    ]
+                },
+                {
+                    id: 'support',
+                    name: 'Member Support Tools',
+                    priority: 'secondary',
+                    description: 'Help members implement transparency processes in country programmes.',
+                    products: [
+                        {
+                            id: 'data-pub',
+                            name: 'Data Publication Assistant',
+                            description: 'Guides entities through OC4IDS data publishing, validates quality during upload, and lowers the technical barrier for disclosure.'
+                        },
+                        {
+                            id: 'report-gen',
+                            name: 'Report Draft Generator',
+                            description: 'Prepares assurance and annual report drafts for human review and supports infrastructure sector analysis.'
+                        },
+                        {
+                            id: 'climate',
+                            name: 'Climate Finance Prototype',
+                            description: 'Automates climate-related disclosure analysis and tracks climate finance flows across infrastructure portfolios.'
+                        },
+                        {
+                            id: 'independence',
+                            name: 'Independence Review',
+                            description: 'Surfaces reviewer conflicts of interest, drafts independence assessments, and standardises verification.'
+                        },
+                        {
+                            id: 'iti',
+                            name: 'ITI Automation',
+                            description: 'Calculates Infrastructure Transparency Index scores, rankings, and comparative dashboards automatically.'
+                        },
+                        {
+                            id: 'process',
+                            name: 'Process Automation',
+                            description: 'Runs 40-field disclosure verification, assesses data quality, and pinpoints gaps with recommended actions.'
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const expandedCategories = new Set();
+        const nodeOffsets = new Map();
+
+        const NODE_SPECS = {
+            root: { width: 280, height: 140 },
+            category: { width: 260, height: 150 },
+            product: { width: 236, height: 148 }
+        };
+
+        let svg;
+        let viewport;
+        let linksGroup;
+        let nodesGroup;
+        let zoom;
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        let currentNodes = [];
+        let currentLinks = [];
+        let hasUserInteracted = false;
+
+        const detailPanel = document.getElementById('detail-panel');
+        const detailContent = document.getElementById('detail-content');
+        const closeBtn = document.getElementById('close-btn');
+
+        const connector = d3.linkVertical()
+            .x(d => d.x)
+            .y(d => d.y);
+
+        function buildHierarchy() {
+            return {
+                id: data.id,
+                name: data.name,
+                type: 'root',
+                description: data.description,
+                children: data.categories.map(category => ({
+                    id: category.id,
+                    name: category.name,
+                    type: 'category',
+                    priority: category.priority,
+                    description: category.description,
+                    products: category.products,
+                    children: expandedCategories.has(category.id)
+                        ? category.products.map(product => ({
+                            id: product.id,
+                            name: product.name,
+                            type: 'product',
+                            description: product.description,
+                            categoryId: category.id,
+                            categoryName: category.name
+                        }))
+                        : []
+                }))
+            };
+        }
+
+        function init() {
+            svg = d3.select('#canvas');
+            svg.attr('width', width).attr('height', height);
+
+            // Add gradient definitions
+            const defs = svg.append('defs');
+
+            // Category gradient (red)
+            const categoryGradient = defs.append('linearGradient')
+                .attr('id', 'gradient-category')
+                .attr('x1', '0%').attr('y1', '0%')
+                .attr('x2', '0%').attr('y2', '100%');
+            categoryGradient.append('stop')
+                .attr('offset', '0%')
+                .attr('stop-color', 'rgba(183, 37, 28, 0.4)');
+            categoryGradient.append('stop')
+                .attr('offset', '100%')
+                .attr('stop-color', 'rgba(183, 37, 28, 0.15)');
+
+            // Product gradient (teal)
+            const productGradient = defs.append('linearGradient')
+                .attr('id', 'gradient-product')
+                .attr('x1', '0%').attr('y1', '0%')
+                .attr('x2', '0%').attr('y2', '100%');
+            productGradient.append('stop')
+                .attr('offset', '0%')
+                .attr('stop-color', 'rgba(47, 137, 162, 0.35)');
+            productGradient.append('stop')
+                .attr('offset', '100%')
+                .attr('stop-color', 'rgba(47, 137, 162, 0.12)');
+
+            // Highlight gradient (red vibrant)
+            const highlightGradient = defs.append('linearGradient')
+                .attr('id', 'gradient-highlight')
+                .attr('x1', '0%').attr('y1', '0%')
+                .attr('x2', '0%').attr('y2', '100%');
+            highlightGradient.append('stop')
+                .attr('offset', '0%')
+                .attr('stop-color', 'rgba(183, 37, 28, 0.9)');
+            highlightGradient.append('stop')
+                .attr('offset', '100%')
+                .attr('stop-color', 'rgba(183, 37, 28, 0.5)');
+
+            viewport = svg.append('g').attr('class', 'viewport');
+            linksGroup = viewport.append('g').attr('class', 'links');
+            nodesGroup = viewport.append('g').attr('class', 'nodes');
+
+            zoom = d3.zoom()
+                .scaleExtent([0.4, 1.6])
+                .translateExtent([[-Infinity, -Infinity], [Infinity, Infinity]])
+                .on('zoom', (event) => {
+                    viewport.attr('transform', event.transform);
+                    if (event.sourceEvent) {
+                        hasUserInteracted = true;
+                    }
+                });
+
+            svg.call(zoom);
+            setupControls();
+            svg.on('click', (event) => {
+                if (event.target === svg.node()) {
+                    hideDetail();
+                }
+            });
+
+            // Show keyboard hint after a delay
+            setTimeout(() => {
+                document.getElementById('keyboard-hint').classList.add('visible');
+            }, 2000);
+
+            // Hide keyboard hint after first interaction
+            svg.on('mousedown', () => {
+                document.getElementById('keyboard-hint').classList.remove('visible');
+            }, { once: true });
+
+            render();
+        }
+
+        function render() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            svg.attr('width', width).attr('height', height);
+
+            const hierarchy = d3.hierarchy(buildHierarchy(), d => d.children);
+            const treeLayout = d3.tree()
+                .nodeSize([420, 280])
+                .separation((a, b) => (a.parent === b.parent ? 1.4 : 1.8));
+
+            treeLayout(hierarchy);
+
+            const nodes = hierarchy.descendants();
+            const links = hierarchy.links();
+
+            const xExtent = d3.extent(nodes, d => d.x);
+            const xOffset = width / 2 - (xExtent[0] + xExtent[1]) / 2;
+            const topMargin = Math.min(180, height * 0.2);
+
+            nodes.forEach(node => {
+                const kind = node.data.type || (node.depth === 0 ? 'root' : node.depth === 1 ? 'category' : 'product');
+                node.kind = kind;
+                node.size = NODE_SPECS[kind];
+                node.baseX = node.x + xOffset;
+                node.baseY = topMargin + node.depth * 260;
+                const offset = nodeOffsets.get(node.data.id) || { x: 0, y: 0 };
+                node.displayX = node.baseX + offset.x;
+                node.displayY = node.baseY + offset.y;
+            });
+
+            currentNodes = nodes;
+            currentLinks = links;
+
+            drawLinks();
+            drawNodes();
+
+            if (!hasUserInteracted) {
+                fitToViewport();
+            }
+        }
+
+        function drawLinks() {
+            const linkSelection = linksGroup.selectAll('path')
+                .data(currentLinks, d => `${d.source.data.id}-${d.target.data.id}`);
+
+            linkSelection.exit()
+                .transition().duration(260)
+                .style('opacity', 0)
+                .remove();
+
+            const linkEnter = linkSelection.enter()
+                .append('path')
+                .attr('class', d => `link ${d.target.data.type === 'category' ? 'link-category' : 'link-product'}`)
+                .style('opacity', 0);
+
+            linkEnter.merge(linkSelection)
+                .attr('class', d => `link ${d.target.data.type === 'category' ? 'link-category' : 'link-product'}`)
+                .transition().duration(420)
+                .style('opacity', 0.8)
+                .attr('d', d => linkPath(d));
+        }
+
+        function drawNodes() {
+            const nodeSelection = nodesGroup.selectAll('g.node')
+                .data(currentNodes, d => d.data.id);
+
+            nodeSelection.exit()
+                .transition().duration(220)
+                .style('opacity', 0)
+                .attr('transform', d => `translate(${d.displayX},${d.displayY - 20})`)
+                .remove();
+
+            const nodeEnter = nodeSelection.enter()
+                .append('g')
+                .attr('class', d => `node node-${d.kind}`)
+                .attr('transform', d => `translate(${d.displayX},${d.displayY - 24})`)
+                .style('opacity', 0);
+
+            nodeEnter.append('foreignObject')
+                .attr('class', 'node-card-wrapper')
+                .attr('x', d => -d.size.width / 2)
+                .attr('y', d => -d.size.height / 2)
+                .attr('width', d => d.size.width)
+                .attr('height', d => d.size.height)
+                .append('xhtml:div')
+                .attr('class', d => `node-card node-${d.kind}`)
+                .html(d => buildCardContent(d));
+
+            nodeEnter.transition().duration(420)
+                .attr('transform', d => `translate(${d.displayX},${d.displayY})`)
+                .style('opacity', 1);
+
+            const mergedNodes = nodeEnter.merge(nodeSelection);
+
+            mergedNodes
+                .attr('class', d => `node node-${d.kind}${d.kind === 'category' && !expandedCategories.has(d.data.id) ? ' is-collapsed' : ''}${d.kind === 'category' && expandedCategories.has(d.data.id) ? ' is-expanded' : ''}`)
+                .transition().duration(420)
+                .attr('transform', d => `translate(${d.displayX},${d.displayY})`)
+                .style('opacity', 1);
+
+            mergedNodes.select('foreignObject')
+                .attr('x', d => -d.size.width / 2)
+                .attr('y', d => -d.size.height / 2)
+                .attr('width', d => d.size.width)
+                .attr('height', d => d.size.height);
+
+            mergedNodes.select('.node-card')
+                .attr('class', d => `node-card node-${d.kind}`)
+                .html(d => buildCardContent(d))
+                .each(function(d) {
+                    const foreignObject = this.parentNode;
+                    if (!foreignObject) {
+                        return;
+                    }
+
+                    const cardHeight = Math.ceil(this.scrollHeight + 4);
+                    const minimum = NODE_SPECS[d.kind]?.height || cardHeight;
+                    const targetHeight = Math.max(cardHeight, minimum);
+
+                    if (!Number.isFinite(targetHeight)) {
+                        return;
+                    }
+
+                    if (d.size.height !== targetHeight) {
+                        d.size.height = targetHeight;
+                    }
+
+                    const foSelection = d3.select(foreignObject);
+                    foSelection
+                        .attr('height', targetHeight)
+                        .attr('y', -targetHeight / 2);
+                });
+
+            mergedNodes.on('click', handleNodeClick);
+            mergedNodes.on('mouseenter', handleNodeHover);
+            mergedNodes.on('mouseleave', clearHighlights);
+            mergedNodes.call(dragBehaviour);
+
+            updateLinkPositions();
+        }
+
+        function handleNodeHover(event, node) {
+            if (!node) return;
+
+            // Highlight connected nodes and links
+            const connectedNodeIds = new Set([node.data.id]);
+
+            // Find parent and children
+            if (node.parent) {
+                connectedNodeIds.add(node.parent.data.id);
+            }
+            currentNodes.forEach(n => {
+                if (n.parent && n.parent.data.id === node.data.id) {
+                    connectedNodeIds.add(n.data.id);
+                }
+            });
+
+            // Dim non-connected nodes
+            nodesGroup.selectAll('g.node')
+                .classed('node-dimmed', d => !connectedNodeIds.has(d.data.id));
+
+            // Highlight connected links
+            linksGroup.selectAll('path')
+                .classed('link-highlighted', d => {
+                    return d.source.data.id === node.data.id || d.target.data.id === node.data.id;
+                });
+        }
+
+        function clearHighlights() {
+            nodesGroup.selectAll('g.node').classed('node-dimmed', false);
+            linksGroup.selectAll('path').classed('link-highlighted', false);
+        }
+
+        const dragBehaviour = d3.drag()
+            .filter((event, d) => d.kind !== 'root')
+            .container(function() { return viewport.node(); })
+            .on('start', function(event) {
+                event.sourceEvent.stopPropagation();
+                hasUserInteracted = true;
+                d3.select(this).classed('is-dragging', true);
+            })
+            .on('drag', function(event, d) {
+                // Get current transform
+                const transform = d3.zoomTransform(svg.node());
+
+                // Calculate movement accounting for zoom scale
+                const dx = event.dx / transform.k;
+                const dy = event.dy / transform.k;
+
+                d.displayX += dx;
+                d.displayY += dy;
+
+                nodeOffsets.set(d.data.id, {
+                    x: d.displayX - d.baseX,
+                    y: d.displayY - d.baseY
+                });
+
+                d3.select(this).attr('transform', `translate(${d.displayX},${d.displayY})`);
+
+                if (d.kind === 'category') {
+                    const childNodes = currentNodes.filter(node => node.parent && node.parent.data.id === d.data.id);
+                    childNodes.forEach(child => {
+                        child.displayX += dx;
+                        child.displayY += dy;
+                        nodeOffsets.set(child.data.id, {
+                            x: child.displayX - child.baseX,
+                            y: child.displayY - child.baseY
+                        });
+                    });
+
+                    nodesGroup.selectAll('g.node')
+                        .filter(node => node.parent && node.parent.data.id === d.data.id)
+                        .attr('transform', node => `translate(${node.displayX},${node.displayY})`);
+                }
+
+                updateLinkPositions();
+            })
+            .on('end', function() {
+                d3.select(this).classed('is-dragging', false);
+            });
+
+        function handleNodeClick(event, node) {
+            if (event.defaultPrevented) return;
+
+            if (node.kind === 'category') {
+                toggleCategory(node.data.id);
+                showDetail(node);
+            } else if (node.kind === 'product') {
+                showDetail(node);
+            } else if (node.kind === 'root') {
+                showDetail(node);
+            }
+        }
+
+        function toggleCategory(categoryId) {
+            if (expandedCategories.has(categoryId)) {
+                expandedCategories.delete(categoryId);
+            } else {
+                expandedCategories.add(categoryId);
+            }
+            render();
+        }
+
+        function linkPath(link) {
+            return connector({
+                source: {
+                    x: link.source.displayX,
+                    y: link.source.displayY + link.source.size.height / 2 - 6
+                },
+                target: {
+                    x: link.target.displayX,
+                    y: link.target.displayY - link.target.size.height / 2 + 6
+                }
+            });
+        }
+
+        function updateLinkPositions() {
+            linksGroup.selectAll('path').attr('d', d => linkPath(d));
+        }
+
+        function fitToViewport() {
+            if (!currentNodes.length) {
+                return;
+            }
+
+            let minX = Infinity;
+            let maxX = -Infinity;
+            let minY = Infinity;
+            let maxY = -Infinity;
+
+            currentNodes.forEach(node => {
+                const halfW = (node.size?.width || 0) / 2;
+                const halfH = (node.size?.height || 0) / 2;
+                minX = Math.min(minX, node.displayX - halfW);
+                maxX = Math.max(maxX, node.displayX + halfW);
+                minY = Math.min(minY, node.displayY - halfH);
+                maxY = Math.max(maxY, node.displayY + halfH);
+            });
+
+            if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minY) || !isFinite(maxY)) {
+                return;
+            }
+
+            const boundsWidth = Math.max(maxX - minX, 1);
+            const boundsHeight = Math.max(maxY - minY, 1);
+
+            const paddingX = Math.min(280, width * 0.2);
+            const paddingY = Math.min(240, height * 0.22);
+            const availableWidth = Math.max(width - paddingX * 2, 1);
+            const availableHeight = Math.max(height - paddingY * 2, 1);
+
+            let scale = Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight);
+            scale = Math.max(0.4, Math.min(1.2, scale));
+
+            const midX = (minX + maxX) / 2;
+            const midY = (minY + maxY) / 2;
+
+            const transform = d3.zoomIdentity
+                .translate(width / 2, height / 2)
+                .scale(scale)
+                .translate(-midX, -midY);
+
+            svg.transition().duration(600).call(zoom.transform, transform);
+        }
+
+        function buildCardContent(node) {
+            if (node.kind === 'root') {
+                return `
+                    <div class="node-eyebrow">AI FRAMEWORK</div>
+                    <div class="node-title">${node.data.name}</div>
+                    <div class="node-copy">${node.data.description}</div>
+                `;
+            }
+
+            if (node.kind === 'category') {
+                const count = node.data.products.length;
+                const label = count === 1 ? 'product' : 'products';
+                const indicator = expandedCategories.has(node.data.id) ? '−' : '+';
+                return `
+                    <div class="node-eyebrow">${count} ${label}</div>
+                    <div class="node-title">${node.data.name}</div>
+                    <div class="node-copy">${ellipsize(node.data.description, 120)}</div>
+                    <div class="node-indicator">${indicator}</div>
+                `;
+            }
+
+            const parentName = node.parent ? node.parent.data.name : '';
+            return `
+                <div class="node-title">${node.data.name}</div>
+                <div class="node-copy">${ellipsize(node.data.description, 140)}</div>
+                <div class="node-meta">${parentName}</div>
+            `;
+        }
+
+        function ellipsize(text, max) {
+            if (!text) return '';
+            return text.length > max ? `${text.slice(0, max).trim()}…` : text;
+        }
+
+        function showDetail(node) {
+            if (!node) return;
+
+            const type = node.kind;
+            let html = '';
+
+            // Build breadcrumb trail
+            const breadcrumbs = [];
+            let current = node;
+            while (current) {
+                breadcrumbs.unshift(current);
+                current = current.parent;
+            }
+
+            if (breadcrumbs.length > 1) {
+                html += '<div class="breadcrumb">';
+                breadcrumbs.forEach((crumb, index) => {
+                    const isLast = index === breadcrumbs.length - 1;
+                    html += `<span class="breadcrumb-item ${isLast ? 'active' : ''}">${crumb.data.name}</span>`;
+                    if (!isLast) {
+                        html += '<span class="breadcrumb-separator">›</span>';
+                    }
+                });
+                html += '</div>';
+            }
+
+            if (type === 'root') {
+                html += '<div class="meta-line">AI FRAMEWORK</div>';
+                html += `<h2>${node.data.name}</h2>`;
+                html += `<p>${node.data.description}</p>`;
+                html += '<p>The framework orchestrates three product groupings. Select a category to explore its products, or drag elements to compose a narrative.</p>';
+            } else if (type === 'category') {
+                if (node.data.priority === 'PRIMARY') {
+                    html += '<div class="priority-badge">PRIMARY FOCUS</div>';
+                } else {
+                    html += '<div class="meta-line">PRODUCT CATEGORY</div>';
+                }
+                html += `<h2>${node.data.name}</h2>`;
+                html += `<p>${node.data.description}</p>`;
+                if (node.data.products?.length) {
+                    html += '<ul class="product-list">' + node.data.products.map(prod => `<li>${prod.name}</li>`).join('') + '</ul>';
+                }
+            } else if (type === 'product') {
+                html += '<div class="meta-line">PRODUCT DETAIL</div>';
+                html += `<h2>${node.data.name}</h2>`;
+                if (node.parent) {
+                    html += `<p><strong>${node.parent.data.name}</strong></p>`;
+                }
+                html += `<p>${node.data.description}</p>`;
+            }
+
+            detailContent.innerHTML = html;
+            detailPanel.classList.add('visible');
+        }
+
+        function hideDetail() {
+            detailPanel.classList.remove('visible');
+        }
+
+        closeBtn.addEventListener('click', hideDetail);
+
+        document.addEventListener('keydown', (event) => {
+            // Close detail panel
+            if (event.key === 'Escape') {
+                hideDetail();
+            }
+
+            // Expand all categories
+            if (event.key === 'E' || event.key === 'e') {
+                data.categories.forEach(cat => {
+                    expandedCategories.add(cat.id);
+                });
+                render();
+            }
+
+            // Collapse all categories
+            if (event.key === 'C' || event.key === 'c') {
+                expandedCategories.clear();
+                render();
+            }
+
+            // Reset zoom
+            if (event.key === 'R' || event.key === 'r') {
+                hasUserInteracted = false;
+                fitToViewport();
+            }
+
+            // Zoom in
+            if (event.key === '+' || event.key === '=') {
+                event.preventDefault();
+                hasUserInteracted = true;
+                svg.transition().duration(260).call(zoom.scaleBy, 1.12);
+            }
+
+            // Zoom out
+            if (event.key === '-' || event.key === '_') {
+                event.preventDefault();
+                hasUserInteracted = true;
+                svg.transition().duration(260).call(zoom.scaleBy, 0.88);
+            }
+        });
+
+        function setupControls() {
+            const zoomInBtn = document.getElementById('zoom-in');
+            const zoomOutBtn = document.getElementById('zoom-out');
+            const exportBtn = document.getElementById('export-svg');
+
+            if (zoomInBtn) {
+                zoomInBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    hasUserInteracted = true;
+                    svg.transition().duration(260).call(zoom.scaleBy, 1.12);
+                });
+            }
+
+            if (zoomOutBtn) {
+                zoomOutBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    hasUserInteracted = true;
+                    svg.transition().duration(260).call(zoom.scaleBy, 0.88);
+                });
+            }
+
+            if (exportBtn) {
+                exportBtn.addEventListener('click', exportAsSVG);
+            }
+
+            // Swipe gesture for mobile detail panel
+            let touchStartY = 0;
+            let touchStartX = 0;
+
+            detailPanel.addEventListener('touchstart', (event) => {
+                touchStartY = event.touches[0].clientY;
+                touchStartX = event.touches[0].clientX;
+            }, { passive: true });
+
+            detailPanel.addEventListener('touchmove', (event) => {
+                if (!detailPanel.classList.contains('visible')) return;
+
+                const touchY = event.touches[0].clientY;
+                const touchX = event.touches[0].clientX;
+                const deltaY = touchY - touchStartY;
+                const deltaX = Math.abs(touchX - touchStartX);
+
+                // If swiping down and not swiping horizontally much
+                if (deltaY > 50 && deltaX < 30) {
+                    hideDetail();
+                }
+            }, { passive: true });
+        }
+
+        function exportAsSVG() {
+            // Clone the SVG
+            const svgClone = svg.node().cloneNode(true);
+
+            // Add white background
+            const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            background.setAttribute('width', '100%');
+            background.setAttribute('height', '100%');
+            background.setAttribute('fill', '#f5f5f7');
+            svgClone.insertBefore(background, svgClone.firstChild);
+
+            // Serialize SVG
+            const serializer = new XMLSerializer();
+            let svgString = serializer.serializeToString(svgClone);
+
+            // Add XML declaration and namespace
+            svgString = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgString;
+
+            // Create blob and download
+            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'cost-ai-framework-map.svg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        window.addEventListener('resize', () => {
+            render();
+        });
+
+        init();
+    </script>
+
+</body>
+</html>
